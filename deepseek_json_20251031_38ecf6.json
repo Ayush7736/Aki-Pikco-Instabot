@@ -1,0 +1,23 @@
+{
+  "name": "instagram-gemini-bot",
+  "version": "1.0.0",
+  "description": "Instagram Messenger Bot with Gemini AI and Search Integration",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": ["instagram", "bot", "gemini", "messenger", "ai"],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
