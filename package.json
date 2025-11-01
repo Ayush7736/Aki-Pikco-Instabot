@@ -1,14 +1,14 @@
 {
-  "name": "instagram-gemini-bot",
-  "version": "1.0.0",
-  "description": "Instagram Messenger Bot with Gemini AI and Search Integration",
+  "name": "instagram-ai-bot",
+  "version": "4.0.0",
+  "description": "Instagram AI Bot with Gemini Free Tier - Fully Working",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
     "test": "echo \"No tests specified\" && exit 0"
   },
-  "keywords": ["instagram", "bot", "gemini", "messenger", "ai"],
+  "keywords": ["instagram", "bot", "gemini", "ai", "messenger", "free-tier"],
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
