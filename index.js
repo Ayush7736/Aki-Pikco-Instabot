@@ -21,13 +21,31 @@ const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const SERP_API_KEY = process.env.SERP_API_KEY;
 
-// ===== ENVIRONMENT VALIDATION =====
-console.log("🔧 Environment Check:");
-console.log(`   PORT: ${PORT}`);
-console.log(`   VERIFY_TOKEN: ${VERIFY_TOKEN ? '✅ Set' : '❌ Missing'}`);
-console.log(`   PAGE_ACCESS_TOKEN: ${PAGE_ACCESS_TOKEN ? `✅ Set (${PAGE_ACCESS_TOKEN.substring(0, 10)}...)` : '❌ Missing'}`);
-console.log(`   GEMINI_API_KEY: ${GEMINI_API_KEY ? '✅ Set' : '❌ Missing'}`);
-console.log(`   SERP_API_KEY: ${SERP_API_KEY ? '✅ Set' : '❌ Optional'}`);
+// ===== COMPREHENSIVE DEBUG LOGGING =====
+console.log("🚨 ===== COMPREHENSIVE DEBUG START =====");
+console.log("🔧 ENVIRONMENT VARIABLES DEBUG:");
+console.log("   PORT:", PORT);
+console.log("   VERIFY_TOKEN exists:", !!VERIFY_TOKEN);
+console.log("   VERIFY_TOKEN value:", VERIFY_TOKEN);
+console.log("   PAGE_ACCESS_TOKEN exists:", !!PAGE_ACCESS_TOKEN);
+console.log("   PAGE_ACCESS_TOKEN length:", PAGE_ACCESS_TOKEN?.length);
+console.log("   PAGE_ACCESS_TOKEN first 30:", PAGE_ACCESS_TOKEN?.substring(0, 30));
+console.log("   PAGE_ACCESS_TOKEN last 10:", PAGE_ACCESS_TOKEN?.substring(PAGE_ACCESS_TOKEN?.length - 10));
+console.log("   GEMINI_API_KEY exists:", !!GEMINI_API_KEY);
+console.log("   GEMINI_API_KEY first 10:", GEMINI_API_KEY?.substring(0, 10));
+console.log("   SERP_API_KEY exists:", !!SERP_API_KEY);
+
+// Check if token is the problematic one
+const isOldToken = PAGE_ACCESS_TOKEN?.startsWith('IGAAJeDiCbAihBZAFJGe');
+console.log("   IS OLD PROBLEMATIC TOKEN:", isOldToken);
+
+// Check process.env directly
+console.log("🔍 PROCESS.ENV DIRECT CHECK:");
+console.log("   process.env.PAGE_ACCESS_TOKEN exists:", !!process.env.PAGE_ACCESS_TOKEN);
+console.log("   process.env.PAGE_ACCESS_TOKEN length:", process.env.PAGE_ACCESS_TOKEN?.length);
+console.log("   process.env.PAGE_ACCESS_TOKEN first 20:", process.env.PAGE_ACCESS_TOKEN?.substring(0, 20));
+
+console.log("🚨 ===== COMPREHENSIVE DEBUG END =====");
 
 // Validate required environment variables
 const requiredEnvVars = ['VERIFY_TOKEN', 'PAGE_ACCESS_TOKEN', 'GEMINI_API_KEY'];
@@ -56,7 +74,6 @@ function logInteraction(userId, userMessage, botReply, source = "instagram", sta
   
   chatLogs.unshift(logEntry);
   
-  // Prevent memory leaks by limiting log size
   if (chatLogs.length > MAX_LOG_ENTRIES) {
     chatLogs = chatLogs.slice(0, MAX_LOG_ENTRIES);
   }
@@ -68,153 +85,185 @@ function logInteraction(userId, userMessage, botReply, source = "instagram", sta
   }
 }
 
-// ===== OPTIMIZED FALLBACK MODELS FOR FREE TIER =====
-async function tryFallbackModelsOptimized(prompt, apiKey) {
-  const fallbackModels = [
-    { name: 'gemini-2.0-flash-lite', priority: 1 },
-    { name: 'gemini-2.0-flash', priority: 2 },
-    { name: 'gemini-2.5-flash', priority: 3 },
-    { name: 'gemini-2.5-pro', priority: 4 },
-    { name: 'gemini-1.5-flash', priority: 5 }
-  ];
-
-  fallbackModels.sort((a, b) => a.priority - b.priority);
-  
-  for (const model of fallbackModels) {
-    try {
-      console.log(`🔄 Trying model: ${model.name}`);
-      
-      const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model.name}:generateContent?key=${apiKey}`,
-        {
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            maxOutputTokens: 500,
-            temperature: 0.7
-          }
-        },
-        {
-          headers: { "Content-Type": "application/json" },
-          timeout: 10000
-        }
-      );
-      
-      if (response.data.candidates?.[0]?.content?.parts?.[0]?.text) {
-        console.log(`✅ Success with model: ${model.name}`);
-        return response.data.candidates[0].content.parts[0].text.trim();
-      }
-    } catch (error) {
-      console.log(`❌ Model ${model.name} failed:`, error.message);
-      continue;
-    }
-  }
-  
-  return "I'm currently unable to generate responses. Please try again in a moment.";
+// ===== TOKEN CLEANING FUNCTION =====
+function cleanToken(token) {
+  if (!token) return token;
+  console.log("🧹 Cleaning token - before:", token.length, "chars");
+  const cleaned = token.replace(/[^a-zA-Z0-9]/g, '');
+  console.log("🧹 Cleaning token - after:", cleaned.length, "chars");
+  return cleaned;
 }
 
-// ===== INSTAGRAM OAUTH CALLBACK HANDLER =====
-app.get("/auth/callback", (req, res) => {
-  const { code, error, error_reason, error_description } = req.query;
+// ===== COMPREHENSIVE TOKEN DEBUG ENDPOINT =====
+app.get("/debug-env", (req, res) => {
+  console.log("🔍 /debug-env called - Comprehensive environment check");
   
-  console.log("🔐 Instagram OAuth Callback Received");
+  const envAnalysis = {
+    timestamp: new Date().toISOString(),
+    environment_variables: {
+      PORT: process.env.PORT,
+      VERIFY_TOKEN: {
+        exists: !!process.env.VERIFY_TOKEN,
+        length: process.env.VERIFY_TOKEN?.length,
+        value: process.env.VERIFY_TOKEN
+      },
+      PAGE_ACCESS_TOKEN: {
+        exists: !!process.env.PAGE_ACCESS_TOKEN,
+        length: process.env.PAGE_ACCESS_TOKEN?.length,
+        first_30: process.env.PAGE_ACCESS_TOKEN?.substring(0, 30),
+        last_10: process.env.PAGE_ACCESS_TOKEN?.substring(process.env.PAGE_ACCESS_TOKEN?.length - 10),
+        is_old_token: process.env.PAGE_ACCESS_TOKEN?.startsWith('IGAAJeDiCbAihBZAFJGe')
+      },
+      GEMINI_API_KEY: {
+        exists: !!process.env.GEMINI_API_KEY,
+        length: process.env.GEMINI_API_KEY?.length,
+        first_10: process.env.GEMINI_API_KEY?.substring(0, 10)
+      },
+      SERP_API_KEY: {
+        exists: !!process.env.SERP_API_KEY,
+        length: process.env.SERP_API_KEY?.length
+      }
+    },
+    constants: {
+      PAGE_ACCESS_TOKEN: {
+        length: PAGE_ACCESS_TOKEN?.length,
+        first_30: PAGE_ACCESS_TOKEN?.substring(0, 30),
+        is_old_token: PAGE_ACCESS_TOKEN?.startsWith('IGAAJeDiCbAihBZAFJGe')
+      }
+    },
+    process_info: {
+      node_version: process.version,
+      platform: process.platform,
+      memory_usage: process.memoryUsage(),
+      uptime: process.uptime()
+    }
+  };
 
-  if (code) {
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>✅ Instagram Connected</title>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-          body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
-            background: linear-gradient(135deg, #405DE6, #5851DB, #833AB4, #C13584, #E1306C, #FD1D1D);
-            margin: 0; padding: 20px; min-height: 100vh; 
-            display: flex; align-items: center; justify-content: center; color: white; 
-          }
-          .card { 
-            background: rgba(255,255,255,0.15); padding: 40px; border-radius: 20px; 
-            backdrop-filter: blur(10px); text-align: center; max-width: 500px;
-            border: 1px solid rgba(255,255,255,0.2);
-          }
-          h1 { margin: 0 0 20px 0; font-size: 2.2em; }
-          .btn { 
-            background: white; color: #E1306C; padding: 12px 30px; border: none; 
-            border-radius: 25px; font-size: 1.1em; cursor: pointer; margin-top: 20px; 
-            font-weight: 600;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h1>✅ Instagram Connected!</h1>
-          <p>Your Instagram account has been successfully connected to the AI bot.</p>
-          <p>You can now close this window and start chatting with your AI bot!</p>
-          <button class="btn" onclick="window.close()">Close Window</button>
-        </div>
-        <script>setTimeout(() => window.close(), 3000);</script>
-      </body>
-      </html>
-    `);
-  } else if (error) {
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head><title>❌ Connection Failed</title></head>
-      <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f8f9fa;">
-        <div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-          <h1 style="color: #dc3545;">❌ Connection Failed</h1>
-          <p><strong>Error:</strong> ${error}</p>
-          <p>Please try again or check your Instagram app settings.</p>
-        </div>
-      </body>
-      </html>
-    `);
-  } else {
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head><title>Instagram Authentication</title></head>
-      <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-        <h1>🔐 Instagram Auth Endpoint</h1>
-        <p>This handles Instagram OAuth callbacks for your AI bot.</p>
-        <p><strong>Status:</strong> <span style="color: green;">✅ Active & Ready</span></p>
-      </body>
-      </html>
-    `);
+  res.json(envAnalysis);
+});
+
+// ===== TOKEN VALIDATION TEST =====
+app.get("/validate-token", async (req, res) => {
+  try {
+    console.log("🧪 /validate-token - Comprehensive token validation");
+    
+    const currentToken = process.env.PAGE_ACCESS_TOKEN;
+    const cleanedToken = cleanToken(currentToken);
+    
+    console.log("   Current token length:", currentToken?.length);
+    console.log("   Cleaned token length:", cleanedToken?.length);
+    console.log("   Token starts with IGAA:", currentToken?.startsWith('IGAA'));
+    console.log("   First 20 chars:", currentToken?.substring(0, 20));
+    
+    // Test the token with Facebook API
+    const testResponse = await axios.get(
+      `https://graph.facebook.com/v18.0/me?fields=name,id,instagram_business_account&access_token=${cleanedToken}`,
+      { 
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'Instagram-AI-Bot-Debug/1.0'
+        }
+      }
+    );
+
+    res.json({
+      status: "✅ TOKEN IS VALID",
+      debug_info: {
+        original_token_length: currentToken?.length,
+        cleaned_token_length: cleanedToken?.length,
+        starts_with_IGAA: currentToken?.startsWith('IGAA'),
+        first_20_chars: currentToken?.substring(0, 20),
+        api_response: testResponse.data
+      },
+      conclusion: "Token is working correctly with Facebook API"
+    });
+
+  } catch (error) {
+    console.error("❌ /validate-token - Token validation failed");
+    
+    const errorData = error.response?.data?.error || {};
+    const currentToken = process.env.PAGE_ACCESS_TOKEN;
+    
+    res.status(400).json({
+      status: "❌ TOKEN IS INVALID",
+      debug_info: {
+        token_length: currentToken?.length,
+        starts_with_IGAA: currentToken?.startsWith('IGAA'),
+        first_30_chars: currentToken?.substring(0, 30),
+        last_10_chars: currentToken?.substring(currentToken?.length - 10),
+        is_old_token: currentToken?.startsWith('IGAAJeDiCbAihBZAFJGe')
+      },
+      error_details: {
+        code: errorData.code,
+        message: errorData.message,
+        type: errorData.type,
+        fbtrace_id: errorData.fbtrace_id
+      },
+      possible_issues: [
+        !currentToken?.startsWith('IGAA') ? "❌ Token should start with 'IGAA'" : "✅ Token format correct",
+        currentToken?.length < 180 ? "❌ Token seems too short" : "✅ Token length OK",
+        errorData.code === 190 ? "❌ Token is completely invalid" : "",
+        errorData.code === 10 ? "❌ Missing permissions" : ""
+      ].filter(issue => issue),
+      solution: "The token in Render environment variables is invalid. Regenerate and update it."
+    });
+  }
+});
+
+// ===== FORCE TOKEN UPDATE TEST =====
+app.get("/force-token-test", async (req, res) => {
+  try {
+    console.log("🧪 /force-token-test - Testing with manual token");
+    
+    // Test with a manually provided token
+    const testToken = req.query.token || process.env.PAGE_ACCESS_TOKEN;
+    
+    console.log("   Testing token:", testToken?.substring(0, 20) + "...");
+    console.log("   Token length:", testToken?.length);
+    
+    const testResponse = await axios.get(
+      `https://graph.facebook.com/v18.0/me?fields=name&access_token=${testToken}`,
+      { timeout: 10000 }
+    );
+
+    res.json({
+      status: "✅ MANUAL TOKEN TEST SUCCESS",
+      tested_token_preview: testToken?.substring(0, 20) + "...",
+      token_length: testToken?.length,
+      api_response: testResponse.data
+    });
+
+  } catch (error) {
+    const testToken = req.query.token || process.env.PAGE_ACCESS_TOKEN;
+    
+    res.status(400).json({
+      status: "❌ MANUAL TOKEN TEST FAILED",
+      tested_token_preview: testToken?.substring(0, 20) + "...",
+      token_length: testToken?.length,
+      error: error.response?.data?.error || error.message
+    });
   }
 });
 
 // ===== HEALTH CHECK =====
 app.get("/", (req, res) => {
-  const uptime = process.uptime();
-  const hours = Math.floor(uptime / 3600);
-  const minutes = Math.floor((uptime % 3600) / 60);
-  const seconds = Math.floor(uptime % 60);
-  
   res.json({
     status: "OK",
-    message: "🚀 Instagram AI Bot Server Running",
+    message: "🚀 Instagram AI Bot Server Running - DEBUG MODE",
     timestamp: new Date().toISOString(),
-    version: "4.0.0",
-    gemini_tier: "FREE TIER (v1beta)",
-    token_type: "IGAA (Instagram Business API)",
-    endpoints: {
-      health: "/",
-      webhook: "/webhook",
-      callback: "/auth/callback", 
-      logs: "/logs",
-      status: "/status",
+    version: "6.0.0 - FULL DEBUG",
+    debug_endpoints: {
+      environment: "/debug-env",
+      token_validation: "/validate-token", 
+      force_test: "/force-token-test?token=YOUR_TOKEN",
       test_token: "/test-token",
-      test_gemini: "/test-gemini"
+      test_gemini: "/test-gemini",
+      logs: "/logs"
     },
-    stats: {
-      totalInteractions: chatLogs.length,
-      uptime: `${hours}h ${minutes}m ${seconds}s`,
-      memory: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`
+    current_token_status: {
+      length: process.env.PAGE_ACCESS_TOKEN?.length,
+      starts_with_IGAA: process.env.PAGE_ACCESS_TOKEN?.startsWith('IGAA'),
+      is_old_token: process.env.PAGE_ACCESS_TOKEN?.startsWith('IGAAJeDiCbAihBZAFJGe')
     }
   });
 });
@@ -223,28 +272,41 @@ app.get("/", (req, res) => {
 app.get("/webhook", (req, res) => {
   const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query;
 
-  console.log(`🔐 Webhook Verification: mode=${mode}, token=${token ? 'provided' : 'missing'}`);
+  console.log("🔐 Webhook Verification DEBUG:");
+  console.log("   Mode:", mode);
+  console.log("   Token provided:", token ? 'YES' : 'NO');
+  console.log("   Expected token:", VERIFY_TOKEN);
+  console.log("   Challenge:", challenge);
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
     console.log("✅ Webhook verified successfully!");
     res.status(200).send(challenge);
   } else {
     console.log("❌ Webhook verification failed");
-    res.status(403).json({ error: "Verification failed" });
+    res.status(403).json({ 
+      error: "Verification failed",
+      debug: {
+        mode_received: mode,
+        token_received: token ? 'YES' : 'NO',
+        expected_token: VERIFY_TOKEN
+      }
+    });
   }
 });
 
 // ===== WEBHOOK MESSAGE HANDLER =====
 app.post("/webhook", async (req, res) => {
   try {
-    console.log("📨 Instagram Webhook Received");
-    const body = req.body;
+    console.log("📨 Instagram Webhook Received - DEBUG");
+    console.log("   Body object:", req.body.object);
+    console.log("   Entry count:", req.body.entry?.length || 0);
+    console.log("   Current token in use:", process.env.PAGE_ACCESS_TOKEN?.substring(0, 20) + "...");
 
     // Immediately acknowledge receipt
     res.status(200).send("EVENT_RECEIVED");
 
     // Process asynchronously
-    processWebhook(body).catch(error => {
+    processWebhook(req.body).catch(error => {
       console.error("❌ Webhook processing error:", error.message);
     });
 
@@ -285,6 +347,7 @@ async function processInstagramMessage(event) {
   const userMessage = event.message.text.trim();
 
   console.log(`📩 Instagram Message from ${senderId}: "${userMessage}"`);
+  console.log(`   Current token: ${process.env.PAGE_ACCESS_TOKEN?.substring(0, 20)}...`);
 
   if (!userMessage) {
     console.log("⚠️ Empty message, ignoring");
@@ -327,7 +390,7 @@ async function processInstagramMessage(event) {
     }
   }
 
-  // ===== GEMINI AI RESPONSE (OPTIMIZED FREE TIER) =====
+  // ===== GEMINI AI RESPONSE =====
   let geminiReply = "I'm having trouble generating a response right now. Please try again in a moment.";
 
   try {
@@ -373,17 +436,19 @@ Please provide a helpful response${searchUsed ? ' based on the search results' :
     console.log(`✅ AI response generated (${geminiReply.length} characters)`);
 
   } catch (error) {
-    console.error("❌ Primary model failed:", error.message);
-    geminiReply = await tryFallbackModelsOptimized(prompt, GEMINI_API_KEY);
+    console.error("❌ Gemini API error:", error.message);
+    geminiReply = "I'm having trouble connecting to the AI service. Please try again later.";
   }
 
   // ===== SEND REPLY TO INSTAGRAM =====
   try {
+    console.log(`📤 Attempting to send message with token: ${process.env.PAGE_ACCESS_TOKEN?.substring(0, 20)}...`);
     await sendInstagramMessage(senderId, geminiReply);
     logInteraction(senderId, userMessage, geminiReply, "instagram", "success");
     
   } catch (error) {
     console.error("❌ Failed to send Instagram message:", error.message);
+    console.error("   Current token preview:", process.env.PAGE_ACCESS_TOKEN?.substring(0, 30));
     logInteraction(senderId, userMessage, error.message, "instagram", "error");
   }
 }
@@ -392,6 +457,10 @@ Please provide a helpful response${searchUsed ? ' based on the search results' :
 async function sendInstagramMessage(recipientId, messageText) {
   try {
     console.log(`📤 Sending to Instagram user ${recipientId}`);
+    
+    const cleanAccessToken = cleanToken(process.env.PAGE_ACCESS_TOKEN);
+    console.log(`   Using cleaned token: ${cleanAccessToken.substring(0, 20)}...`);
+    console.log(`   Cleaned token length: ${cleanAccessToken.length}`);
 
     const response = await axios.post(
       `https://graph.facebook.com/v18.0/me/messages`,
@@ -401,7 +470,7 @@ async function sendInstagramMessage(recipientId, messageText) {
         messaging_type: "RESPONSE"
       },
       {
-        params: { access_token: PAGE_ACCESS_TOKEN },
+        params: { access_token: cleanAccessToken },
         headers: { "Content-Type": "application/json" },
         timeout: 15000
       }
@@ -416,12 +485,8 @@ async function sendInstagramMessage(recipientId, messageText) {
     if (error.response?.data?.error) {
       const fbError = error.response.data.error;
       console.error(`   Error ${fbError.code}: ${fbError.message}`);
-      
-      if (fbError.code === 190) {
-        throw new Error("Invalid Instagram access token");
-      } else if (fbError.code === 100) {
-        throw new Error("Cannot message this user");
-      }
+      console.error(`   Error type: ${fbError.type}`);
+      console.error(`   FB Trace ID: ${fbError.fbtrace_id}`);
     }
     
     throw error;
@@ -434,15 +499,15 @@ app.get("/test-token", async (req, res) => {
     console.log("🧪 Testing Instagram token...");
     
     const testResponse = await axios.get(
-      `https://graph.facebook.com/v18.0/me?fields=name,id&access_token=${PAGE_ACCESS_TOKEN}`,
+      `https://graph.facebook.com/v18.0/me?fields=name,id&access_token=${process.env.PAGE_ACCESS_TOKEN}`,
       { timeout: 10000 }
     );
 
     res.json({
       status: "✅ Token is VALID",
-      token_preview: `${PAGE_ACCESS_TOKEN.substring(0, 15)}...`,
-      account_info: testResponse.data,
-      token_type: "IGAA (Instagram Business API)"
+      token_preview: `${process.env.PAGE_ACCESS_TOKEN.substring(0, 15)}...`,
+      token_length: process.env.PAGE_ACCESS_TOKEN.length,
+      account_info: testResponse.data
     });
 
   } catch (error) {
@@ -450,8 +515,9 @@ app.get("/test-token", async (req, res) => {
     
     res.status(400).json({
       status: "❌ Token is INVALID",
-      error: error.response?.data?.error || error.message,
-      solution: "Regenerate your Instagram access token"
+      token_preview: `${process.env.PAGE_ACCESS_TOKEN?.substring(0, 15)}...`,
+      token_length: process.env.PAGE_ACCESS_TOKEN?.length,
+      error: error.response?.data?.error || error.message
     });
   }
 });
@@ -484,7 +550,6 @@ app.get("/test-gemini", async (req, res) => {
     res.json({
       status: "✅ Gemini Free Tier is WORKING",
       model: "gemini-2.0-flash-lite",
-      api_version: "v1beta",
       test_prompt: testPrompt,
       response: responseText
     });
@@ -494,23 +559,16 @@ app.get("/test-gemini", async (req, res) => {
     
     res.status(400).json({
       status: "❌ Gemini API Failed",
-      error: error.response?.data?.error?.message || error.message,
-      solution: "Check your Gemini API key"
+      error: error.response?.data?.error?.message || error.message
     });
   }
 });
 
 // ===== ADMIN ROUTES =====
 app.get("/logs", (req, res) => {
-  const page = Math.max(1, parseInt(req.query.page) || 1);
-  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
-  
   res.json({
-    page,
-    limit,
     total: chatLogs.length,
-    totalPages: Math.ceil(chatLogs.length / limit),
-    logs: chatLogs.slice(0, limit)
+    logs: chatLogs.slice(0, 50)
   });
 });
 
@@ -520,52 +578,40 @@ app.get("/status", (req, res) => {
     server_time: new Date().toISOString(),
     uptime_seconds: Math.floor(process.uptime()),
     interactions: chatLogs.length,
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
-
-app.delete("/logs", (req, res) => {
-  const count = chatLogs.length;
-  chatLogs = [];
-  res.json({ message: `Cleared ${count} log entries`, cleared: count });
-});
-
-// ===== ERROR HANDLING =====
-app.use((req, res) => {
-  res.status(404).json({
-    error: "Endpoint not found",
-    available_endpoints: [
-      "GET /", "GET /webhook", "POST /webhook", "GET /auth/callback",
-      "GET /test-token", "GET /test-gemini", "GET /logs", "GET /status", "DELETE /logs"
-    ]
-  });
-});
-
-app.use((error, req, res, next) => {
-  console.error("🛑 Server error:", error);
-  res.status(500).json({
-    error: "Internal server error",
-    message: error.message
+    current_token: {
+      length: process.env.PAGE_ACCESS_TOKEN?.length,
+      starts_with_IGAA: process.env.PAGE_ACCESS_TOKEN?.startsWith('IGAA'),
+      is_old_token: process.env.PAGE_ACCESS_TOKEN?.startsWith('IGAAJeDiCbAihBZAFJGe')
+    }
   });
 });
 
 // ===== START SERVER =====
 app.listen(PORT, () => {
   console.log(`
-🌈 INSTAGRAM AI BOT SERVER STARTED
-===================================
+🔍 INSTAGRAM AI BOT - FULL DEBUG MODE STARTED
+=============================================
 📍 Port: ${PORT}
-🔗 Health: https://instaai-2gem.onrender.com/
-📊 Logs: https://instaai-2gem.onrender.com/logs  
-🧪 Token Test: https://instaai-2gem.onrender.com/test-token
-🤖 Gemini Test: https://instaai-2gem.onrender.com/test-gemini
+🌐 Environment: ${process.env.NODE_ENV || 'development'}
+
+📊 DEBUG ENDPOINTS:
+🔗 Environment Analysis: https://instaai-2gem.onrender.com/debug-env
+🔗 Token Validation: https://instaai-2gem.onrender.com/validate-token  
+🔗 Force Token Test: https://instaai-2gem.onrender.com/force-token-test?token=YOUR_TOKEN
+🔗 Basic Token Test: https://instaai-2gem.onrender.com/test-token
+🔗 Gemini Test: https://instaai-2gem.onrender.com/test-gemini
+🔗 Logs: https://instaai-2gem.onrender.com/logs
 
 💡 Webhook URL: https://instaai-2gem.onrender.com/webhook
 🔑 Verify Token: ${VERIFY_TOKEN}
 
-✅ Server is ready for Instagram messages!
-✨ Message @pikco.aki.74 to test your bot!
-===================================
+📝 CURRENT TOKEN STATUS:
+   Length: ${process.env.PAGE_ACCESS_TOKEN?.length} chars
+   Starts with IGAA: ${process.env.PAGE_ACCESS_TOKEN?.startsWith('IGAA')}
+   Is Old Token: ${process.env.PAGE_ACCESS_TOKEN?.startsWith('IGAAJeDiCbAihBZAFJGe')}
+
+✅ Server is ready for comprehensive debugging!
+=============================================
   `);
 });
 
