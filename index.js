@@ -25,7 +25,7 @@ const SERP_API_KEY = process.env.SERP_API_KEY;
 console.log("🔧 Environment Check:");
 console.log(`   PORT: ${PORT}`);
 console.log(`   VERIFY_TOKEN: ${VERIFY_TOKEN ? '✅ Set' : '❌ Missing'}`);
-console.log(`   PAGE_ACCESS_TOKEN: ${PAGE_ACCESS_TOKEN ? '✅ Set' : '❌ Missing'}`);
+console.log(`   PAGE_ACCESS_TOKEN: ${PAGE_ACCESS_TOKEN ? `✅ Set (${PAGE_ACCESS_TOKEN.substring(0, 10)}...)` : '❌ Missing'}`);
 console.log(`   GEMINI_API_KEY: ${GEMINI_API_KEY ? '✅ Set' : '❌ Missing'}`);
 console.log(`   SERP_API_KEY: ${SERP_API_KEY ? '✅ Set' : '❌ Optional'}`);
 
@@ -41,238 +41,358 @@ if (missingVars.length > 0) {
 
 // ===== LOGGING SYSTEM =====
 let chatLogs = [];
-const MAX_LOG_ENTRIES = 500;
+const MAX_LOG_ENTRIES = 1000;
 
-function logInteraction(userId, userMessage, botReply) {
+function logInteraction(userId, userMessage, botReply, source = "instagram", status = "success") {
   const timestamp = new Date().toISOString();
   const logEntry = {
     userId,
     userMessage,
-    botReply: botReply.substring(0, 200) + (botReply.length > 200 ? '...' : ''),
+    botReply: botReply.length > 300 ? botReply.substring(0, 300) + '...' : botReply,
+    source,
+    status,
     timestamp
   };
   
-  chatLogs.push(logEntry);
+  chatLogs.unshift(logEntry);
   
   // Prevent memory leaks by limiting log size
   if (chatLogs.length > MAX_LOG_ENTRIES) {
-    chatLogs = chatLogs.slice(-MAX_LOG_ENTRIES);
+    chatLogs = chatLogs.slice(0, MAX_LOG_ENTRIES);
   }
   
-  console.log(`💬 [${timestamp}] User ${userId}: ${userMessage}`);
-  console.log(`🤖 [${timestamp}] Bot: ${botReply.substring(0, 100)}...`);
+  const statusIcon = status === "success" ? "✅" : "❌";
+  console.log(`${statusIcon} [${timestamp}] ${source} User ${userId}: ${userMessage}`);
+  if (status === "success") {
+    console.log(`🤖 [${timestamp}] Bot: ${botReply.substring(0, 100)}${botReply.length > 100 ? '...' : ''}`);
+  }
 }
 
-// ===== HEALTH CHECK ENDPOINT =====
+// ===== OPTIMIZED FALLBACK MODELS FOR FREE TIER =====
+async function tryFallbackModelsOptimized(prompt, apiKey) {
+  const fallbackModels = [
+    { name: 'gemini-2.0-flash-lite', priority: 1 },
+    { name: 'gemini-2.0-flash', priority: 2 },
+    { name: 'gemini-2.5-flash', priority: 3 },
+    { name: 'gemini-2.5-pro', priority: 4 },
+    { name: 'gemini-1.5-flash', priority: 5 }
+  ];
+
+  fallbackModels.sort((a, b) => a.priority - b.priority);
+  
+  for (const model of fallbackModels) {
+    try {
+      console.log(`🔄 Trying model: ${model.name}`);
+      
+      const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model.name}:generateContent?key=${apiKey}`,
+        {
+          contents: [{
+            parts: [{ text: prompt }]
+          }],
+          generationConfig: {
+            maxOutputTokens: 500,
+            temperature: 0.7
+          }
+        },
+        {
+          headers: { "Content-Type": "application/json" },
+          timeout: 10000
+        }
+      );
+      
+      if (response.data.candidates?.[0]?.content?.parts?.[0]?.text) {
+        console.log(`✅ Success with model: ${model.name}`);
+        return response.data.candidates[0].content.parts[0].text.trim();
+      }
+    } catch (error) {
+      console.log(`❌ Model ${model.name} failed:`, error.message);
+      continue;
+    }
+  }
+  
+  return "I'm currently unable to generate responses. Please try again in a moment.";
+}
+
+// ===== INSTAGRAM OAUTH CALLBACK HANDLER =====
+app.get("/auth/callback", (req, res) => {
+  const { code, error, error_reason, error_description } = req.query;
+  
+  console.log("🔐 Instagram OAuth Callback Received");
+
+  if (code) {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>✅ Instagram Connected</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+            background: linear-gradient(135deg, #405DE6, #5851DB, #833AB4, #C13584, #E1306C, #FD1D1D);
+            margin: 0; padding: 20px; min-height: 100vh; 
+            display: flex; align-items: center; justify-content: center; color: white; 
+          }
+          .card { 
+            background: rgba(255,255,255,0.15); padding: 40px; border-radius: 20px; 
+            backdrop-filter: blur(10px); text-align: center; max-width: 500px;
+            border: 1px solid rgba(255,255,255,0.2);
+          }
+          h1 { margin: 0 0 20px 0; font-size: 2.2em; }
+          .btn { 
+            background: white; color: #E1306C; padding: 12px 30px; border: none; 
+            border-radius: 25px; font-size: 1.1em; cursor: pointer; margin-top: 20px; 
+            font-weight: 600;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>✅ Instagram Connected!</h1>
+          <p>Your Instagram account has been successfully connected to the AI bot.</p>
+          <p>You can now close this window and start chatting with your AI bot!</p>
+          <button class="btn" onclick="window.close()">Close Window</button>
+        </div>
+        <script>setTimeout(() => window.close(), 3000);</script>
+      </body>
+      </html>
+    `);
+  } else if (error) {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>❌ Connection Failed</title></head>
+      <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f8f9fa;">
+        <div style="background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <h1 style="color: #dc3545;">❌ Connection Failed</h1>
+          <p><strong>Error:</strong> ${error}</p>
+          <p>Please try again or check your Instagram app settings.</p>
+        </div>
+      </body>
+      </html>
+    `);
+  } else {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Instagram Authentication</title></head>
+      <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+        <h1>🔐 Instagram Auth Endpoint</h1>
+        <p>This handles Instagram OAuth callbacks for your AI bot.</p>
+        <p><strong>Status:</strong> <span style="color: green;">✅ Active & Ready</span></p>
+      </body>
+      </html>
+    `);
+  }
+});
+
+// ===== HEALTH CHECK =====
 app.get("/", (req, res) => {
+  const uptime = process.uptime();
+  const hours = Math.floor(uptime / 3600);
+  const minutes = Math.floor((uptime % 3600) / 60);
+  const seconds = Math.floor(uptime % 60);
+  
   res.json({
     status: "OK",
-    message: "🤖 Instagram Gemini Bot Server is Running",
+    message: "🚀 Instagram AI Bot Server Running",
     timestamp: new Date().toISOString(),
-    version: "1.0.0",
+    version: "4.0.0",
+    gemini_tier: "FREE TIER (v1beta)",
+    token_type: "IGAA (Instagram Business API)",
     endpoints: {
       health: "/",
       webhook: "/webhook",
+      callback: "/auth/callback", 
       logs: "/logs",
-      clearLogs: "DELETE /logs"
+      status: "/status",
+      test_token: "/test-token",
+      test_gemini: "/test-gemini"
     },
     stats: {
       totalInteractions: chatLogs.length,
-      uptime: Math.floor(process.uptime()) + " seconds"
+      uptime: `${hours}h ${minutes}m ${seconds}s`,
+      memory: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`
     }
   });
 });
 
 // ===== WEBHOOK VERIFICATION =====
 app.get("/webhook", (req, res) => {
-  const mode = req.query["hub.mode"];
-  const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
+  const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query;
 
-  console.log(`🔐 Webhook verification attempt: mode=${mode}, token=${token ? 'provided' : 'missing'}`);
+  console.log(`🔐 Webhook Verification: mode=${mode}, token=${token ? 'provided' : 'missing'}`);
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
     console.log("✅ Webhook verified successfully!");
     res.status(200).send(challenge);
   } else {
     console.log("❌ Webhook verification failed");
-    res.status(403).json({
-      error: "Verification failed",
-      message: "Invalid verify token or mode"
-    });
+    res.status(403).json({ error: "Verification failed" });
   }
 });
 
 // ===== WEBHOOK MESSAGE HANDLER =====
 app.post("/webhook", async (req, res) => {
   try {
-    console.log("📨 Received webhook payload");
+    console.log("📨 Instagram Webhook Received");
     const body = req.body;
 
-    // Immediately respond to acknowledge receipt
+    // Immediately acknowledge receipt
     res.status(200).send("EVENT_RECEIVED");
 
-    // Process the webhook asynchronously
+    // Process asynchronously
     processWebhook(body).catch(error => {
-      console.error("❌ Error processing webhook:", error.message);
+      console.error("❌ Webhook processing error:", error.message);
     });
 
   } catch (err) {
-    console.error("❌ POST /webhook error:", err.message);
-    res.status(500).send("ERROR_PROCESSING");
+    console.error("❌ Webhook handler error:", err.message);
+    res.status(500).send("ERROR_PROCESSING_WEBHOOK");
   }
 });
 
-// ===== PROCESS WEBHOOK ASYNC =====
+// ===== PROCESS WEBHOOK =====
 async function processWebhook(body) {
-  if (body.object === "instagram" || body.object === "page") {
-    console.log(`🔍 Processing ${body.object} webhook`);
+  if (body.object !== "instagram") {
+    console.log("⚠️ Ignoring non-Instagram webhook");
+    return;
+  }
+
+  if (!body.entry || body.entry.length === 0) {
+    console.log("ℹ️ No entries in webhook");
+    return;
+  }
+
+  for (const entry of body.entry) {
+    const messaging = entry.messaging || [];
     
-    for (const entry of body.entry) {
-      // Handle Instagram direct messages
-      const messaging = entry.messaging || [];
-      
-      for (const event of messaging) {
-        if (event.message && event.message.text) {
-          await processMessageEvent(event);
-        }
-      }
-      
-      // Handle Instagram story replies or other changes
-      const changes = entry.changes || [];
-      for (const change of changes) {
-        if (change.field === "messages" && change.value.messages) {
-          for (const message of change.value.messages) {
-            await processMessageEvent({
-              sender: { id: message.from },
-              message: { text: message.text }
-            });
-          }
-        }
+    console.log(`   Processing ${messaging.length} messaging events`);
+
+    for (const event of messaging) {
+      if (event.message && event.message.text) {
+        await processInstagramMessage(event);
       }
     }
-  } else {
-    console.log("⚠️ Unknown webhook object type:", body.object);
   }
 }
 
-// ===== PROCESS MESSAGE EVENT =====
-async function processMessageEvent(event) {
+// ===== PROCESS INSTAGRAM MESSAGE =====
+async function processInstagramMessage(event) {
   const senderId = event.sender.id;
   const userMessage = event.message.text.trim();
-  
-  if (!userMessage) return;
 
-  console.log(`📩 Processing message from ${senderId}: "${userMessage}"`);
+  console.log(`📩 Instagram Message from ${senderId}: "${userMessage}"`);
+
+  if (!userMessage) {
+    console.log("⚠️ Empty message, ignoring");
+    return;
+  }
 
   let prompt = userMessage;
-  let usedSearch = false;
+  let searchUsed = false;
 
   // ===== SEARCH FUNCTIONALITY =====
-  if (userMessage.toLowerCase().startsWith("search:")) {
+  if (userMessage.toLowerCase().startsWith("search:") && SERP_API_KEY) {
     const query = userMessage.slice(7).trim();
-    if (query && SERP_API_KEY) {
+    if (query) {
       try {
         console.log(`🔍 Performing search: "${query}"`);
-        const serpRes = await axios.get("https://serpapi.com/search.json", {
+        
+        const searchResponse = await axios.get("https://serpapi.com/search.json", {
           params: {
             q: query,
             api_key: SERP_API_KEY,
             engine: "google",
             num: 3
           },
-          timeout: 15000
+          timeout: 10000
         });
-        
-        const results = serpRes.data.organic_results
-          ?.slice(0, 3)
-          .map((r, i) => `${i + 1}. ${r.title}: ${r.snippet}`)
-          .join("\n\n") || "No relevant results found.";
-        
-        prompt = `User asked for search results about: "${query}"\n\nSearch Results:\n${results}\n\nBased on these search results, provide a helpful, concise response to the user. If the results don't fully answer their question, let them know and suggest being more specific.`;
-        usedSearch = true;
-        
-      } catch (err) {
-        console.error("❌ SERP API error:", err.message);
-        prompt = `I tried to search for "${query}" but encountered an issue. Please try again later or ask me directly without the "search:" prefix.`;
+
+        const results = searchResponse.data.organic_results?.slice(0, 3)
+          .map((result, index) => `${index + 1}. ${result.title}: ${result.snippet}`)
+          .join('\n\n') || 'No relevant results found.';
+
+        prompt = `User searched for: "${query}"\n\nSearch Results:\n${results}\n\nBased on these results, provide a helpful and concise answer.`;
+        searchUsed = true;
+
+        console.log("✅ Search completed successfully");
+
+      } catch (error) {
+        console.error("❌ Search API error:", error.message);
+        prompt = `I couldn't search for "${query}" right now. Please try again later.`;
       }
-    } else if (!SERP_API_KEY) {
-      prompt = "Search functionality is not currently available. Please ask me questions directly.";
     }
   }
 
-  // ===== GEMINI AI RESPONSE =====
-  let geminiReply = "I apologize, but I'm having trouble generating a response right now. Please try again in a moment.";
-  
+  // ===== GEMINI AI RESPONSE (OPTIMIZED FREE TIER) =====
+  let geminiReply = "I'm having trouble generating a response right now. Please try again in a moment.";
+
   try {
-    console.log(`🤖 Generating AI response...`);
+    console.log(`🤖 Generating AI response with Gemini Free Tier...`);
     
-    const gemRes = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
+    const geminiResponse = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
       {
-        contents: [{ 
-          parts: [{ 
-            text: `You are a helpful AI assistant. Respond to the user in a friendly, conversational tone. Keep responses clear and concise unless more detail is needed.\n\nUser: ${prompt}` 
-          }] 
+        contents: [{
+          parts: [{
+            text: `You are a helpful AI assistant for Instagram. Respond in a friendly, conversational tone. Keep responses clear and engaging.
+
+User message: ${prompt}
+
+Please provide a helpful response${searchUsed ? ' based on the search results' : ''}.`
+          }]
         }],
         generationConfig: {
           maxOutputTokens: 800,
           temperature: 0.7,
-          topP: 0.8,
-          topK: 40
+          topP: 0.8
         }
       },
-      { 
+      {
         headers: { "Content-Type": "application/json" },
-        timeout: 30000
+        timeout: 25000
       }
     );
 
-    if (gemRes.data.candidates && gemRes.data.candidates[0]) {
-      geminiReply = gemRes.data.candidates[0].content.parts[0].text.trim();
+    const candidate = geminiResponse.data.candidates?.[0];
+    if (candidate?.content?.parts?.[0]?.text) {
+      geminiReply = candidate.content.parts[0].text.trim();
     }
-    
-    // Ensure response is not empty
-    if (!geminiReply) {
-      geminiReply = "I didn't get a proper response. Could you please rephrase your question?";
+
+    if (!geminiReply || geminiReply.trim() === "") {
+      geminiReply = "I didn't quite get that. Could you please rephrase your question?";
     }
-    
-    // Truncate very long responses for Instagram
+
     if (geminiReply.length > 1500) {
       geminiReply = geminiReply.substring(0, 1497) + "...";
     }
-    
-    console.log(`✅ AI response generated (${geminiReply.length} chars)`);
-    
-  } catch (err) {
-    console.error("❌ Gemini API error:", err.message);
-    if (err.response) {
-      console.error("Gemini API response error:", err.response.data);
-    }
-    
-    if (err.code === 'ECONNABORTED') {
-      geminiReply = "The request took too long to process. Please try again with a simpler question.";
-    } else if (err.response?.status === 429) {
-      geminiReply = "I'm receiving too many requests right now. Please try again in a few moments.";
-    } else {
-      geminiReply = "I'm experiencing technical difficulties. Please try again shortly.";
-    }
+
+    console.log(`✅ AI response generated (${geminiReply.length} characters)`);
+
+  } catch (error) {
+    console.error("❌ Primary model failed:", error.message);
+    geminiReply = await tryFallbackModelsOptimized(prompt, GEMINI_API_KEY);
   }
 
-  // ===== SEND RESPONSE =====
+  // ===== SEND REPLY TO INSTAGRAM =====
   try {
-    await sendMessage(senderId, geminiReply);
-    logInteraction(senderId, userMessage, geminiReply);
-  } catch (sendError) {
-    console.error("❌ Failed to send message:", sendError.message);
+    await sendInstagramMessage(senderId, geminiReply);
+    logInteraction(senderId, userMessage, geminiReply, "instagram", "success");
+    
+  } catch (error) {
+    console.error("❌ Failed to send Instagram message:", error.message);
+    logInteraction(senderId, userMessage, error.message, "instagram", "error");
   }
 }
 
-// ===== SEND MESSAGE FUNCTION =====
-async function sendMessage(recipientId, messageText) {
+// ===== SEND INSTAGRAM MESSAGE =====
+async function sendInstagramMessage(recipientId, messageText) {
   try {
-    console.log(`📤 Sending message to ${recipientId} (${messageText.length} chars)`);
-    
+    console.log(`📤 Sending to Instagram user ${recipientId}`);
+
     const response = await axios.post(
       `https://graph.facebook.com/v18.0/me/messages`,
       {
@@ -281,123 +401,172 @@ async function sendMessage(recipientId, messageText) {
         messaging_type: "RESPONSE"
       },
       {
-        params: { 
-          access_token: PAGE_ACCESS_TOKEN 
-        },
+        params: { access_token: PAGE_ACCESS_TOKEN },
         headers: { "Content-Type": "application/json" },
-        timeout: 10000
+        timeout: 15000
       }
     );
-    
-    console.log("✅ Message sent successfully");
+
+    console.log("✅ Instagram message sent successfully!");
     return response.data;
-  } catch (err) {
-    console.error("❌ sendMessage error:", err.message);
-    if (err.response) {
-      console.error("Facebook API error response:", JSON.stringify(err.response.data, null, 2));
+
+  } catch (error) {
+    console.error("❌ Instagram API Error:");
+    
+    if (error.response?.data?.error) {
+      const fbError = error.response.data.error;
+      console.error(`   Error ${fbError.code}: ${fbError.message}`);
       
-      // Handle specific Facebook API errors
-      if (err.response.data.error) {
-        const fbError = err.response.data.error;
-        console.error(`Facebook Error ${fbError.code}: ${fbError.message}`);
+      if (fbError.code === 190) {
+        throw new Error("Invalid Instagram access token");
+      } else if (fbError.code === 100) {
+        throw new Error("Cannot message this user");
       }
     }
-    throw err;
+    
+    throw error;
   }
 }
 
-// ===== LOGS ENDPOINT =====
+// ===== TEST ENDPOINTS =====
+app.get("/test-token", async (req, res) => {
+  try {
+    console.log("🧪 Testing Instagram token...");
+    
+    const testResponse = await axios.get(
+      `https://graph.facebook.com/v18.0/me?fields=name,id&access_token=${PAGE_ACCESS_TOKEN}`,
+      { timeout: 10000 }
+    );
+
+    res.json({
+      status: "✅ Token is VALID",
+      token_preview: `${PAGE_ACCESS_TOKEN.substring(0, 15)}...`,
+      account_info: testResponse.data,
+      token_type: "IGAA (Instagram Business API)"
+    });
+
+  } catch (error) {
+    console.error("❌ Token test failed:", error.message);
+    
+    res.status(400).json({
+      status: "❌ Token is INVALID",
+      error: error.response?.data?.error || error.message,
+      solution: "Regenerate your Instagram access token"
+    });
+  }
+});
+
+app.get("/test-gemini", async (req, res) => {
+  try {
+    console.log("🧪 Testing Gemini Free Tier...");
+    
+    const testPrompt = "Hello! Please respond with a short greeting to confirm the API is working.";
+    
+    const geminiResponse = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        contents: [{
+          parts: [{ text: testPrompt }]
+        }],
+        generationConfig: {
+          maxOutputTokens: 100,
+          temperature: 0.7
+        }
+      },
+      {
+        headers: { "Content-Type": "application/json" },
+        timeout: 15000
+      }
+    );
+
+    const responseText = geminiResponse.data.candidates?.[0]?.content?.parts?.[0]?.text || "No response text";
+
+    res.json({
+      status: "✅ Gemini Free Tier is WORKING",
+      model: "gemini-2.0-flash-lite",
+      api_version: "v1beta",
+      test_prompt: testPrompt,
+      response: responseText
+    });
+
+  } catch (error) {
+    console.error("❌ Gemini test failed:", error.message);
+    
+    res.status(400).json({
+      status: "❌ Gemini API Failed",
+      error: error.response?.data?.error?.message || error.message,
+      solution: "Check your Gemini API key"
+    });
+  }
+});
+
+// ===== ADMIN ROUTES =====
 app.get("/logs", (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 50;
-  const startIndex = (page - 1) * limit;
-  const endIndex = startIndex + limit;
-  
-  const paginatedLogs = chatLogs.slice().reverse().slice(startIndex, endIndex);
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
   
   res.json({
     page,
     limit,
     total: chatLogs.length,
     totalPages: Math.ceil(chatLogs.length / limit),
-    logs: paginatedLogs
+    logs: chatLogs.slice(0, limit)
   });
 });
 
-// ===== CLEAR LOGS ENDPOINT =====
-app.delete("/logs", (req, res) => {
-  const previousCount = chatLogs.length;
-  chatLogs = [];
-  
-  res.json({ 
-    message: `Cleared ${previousCount} log entries`,
-    cleared: previousCount,
-    remaining: 0,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// ===== SERVER STATUS ENDPOINT =====
 app.get("/status", (req, res) => {
   res.json({
     status: "healthy",
-    timestamp: new Date().toISOString(),
-    uptime: Math.floor(process.uptime()),
-    memory: process.memoryUsage(),
+    server_time: new Date().toISOString(),
+    uptime_seconds: Math.floor(process.uptime()),
     interactions: chatLogs.length,
-    environment: {
-      node: process.version,
-      platform: process.platform
-    }
+    environment: process.env.NODE_ENV || 'development'
   });
+});
+
+app.delete("/logs", (req, res) => {
+  const count = chatLogs.length;
+  chatLogs = [];
+  res.json({ message: `Cleared ${count} log entries`, cleared: count });
 });
 
 // ===== ERROR HANDLING =====
-app.use((err, req, res, next) => {
-  console.error("🛑 Unhandled error:", err);
-  res.status(500).json({ 
-    error: "Internal server error",
-    message: err.message,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// 404 Handler
 app.use((req, res) => {
-  res.status(404).json({ 
-    error: "Route not found",
-    path: req.path,
-    availableEndpoints: [
-      "GET /",
-      "GET /webhook",
-      "POST /webhook", 
-      "GET /logs",
-      "DELETE /logs",
-      "GET /status"
+  res.status(404).json({
+    error: "Endpoint not found",
+    available_endpoints: [
+      "GET /", "GET /webhook", "POST /webhook", "GET /auth/callback",
+      "GET /test-token", "GET /test-gemini", "GET /logs", "GET /status", "DELETE /logs"
     ]
   });
 });
 
-// ===== GRACEFUL SHUTDOWN =====
-process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received, shutting down gracefully');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  console.log('🛑 SIGINT received, shutting down gracefully');
-  process.exit(0);
+app.use((error, req, res, next) => {
+  console.error("🛑 Server error:", error);
+  res.status(500).json({
+    error: "Internal server error",
+    message: error.message
+  });
 });
 
 // ===== START SERVER =====
 app.listen(PORT, () => {
-  console.log(`\n🚀 Instagram Gemini Bot Server Started!`);
-  console.log(`📍 Port: ${PORT}`);
-  console.log(`🔗 Health Check: http://localhost:${PORT}/`);
-  console.log(`📊 Logs: http://localhost:${PORT}/logs`);
-  console.log(`⚡ Status: http://localhost:${PORT}/status`);
-  console.log(`\n💡 Make sure your webhook URL is set to: https://your-app.onrender.com/webhook`);
-  console.log(`🔐 Verify Token: ${VERIFY_TOKEN}\n`);
+  console.log(`
+🌈 INSTAGRAM AI BOT SERVER STARTED
+===================================
+📍 Port: ${PORT}
+🔗 Health: https://instaai-2gem.onrender.com/
+📊 Logs: https://instaai-2gem.onrender.com/logs  
+🧪 Token Test: https://instaai-2gem.onrender.com/test-token
+🤖 Gemini Test: https://instaai-2gem.onrender.com/test-gemini
+
+💡 Webhook URL: https://instaai-2gem.onrender.com/webhook
+🔑 Verify Token: ${VERIFY_TOKEN}
+
+✅ Server is ready for Instagram messages!
+✨ Message @pikco.aki.74 to test your bot!
+===================================
+  `);
 });
 
 module.exports = app;
