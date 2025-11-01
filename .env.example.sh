@@ -1,21 +1,17 @@
-# Copy this file to .env and fill in your actual values
-# For Render, set these as Environment Variables in your dashboard
+# Instagram AI Bot - Environment Variables
+# Copy this to .env for local development
 
-# Server Port (Render will set this automatically)
+# Server
 PORT=3000
 
-# Facebook/Instagram App Webhook Verify Token
-# Create a random string for this
+# Instagram
 VERIFY_TOKEN=your_webhook_verify_token_here
+PAGE_ACCESS_TOKEN=your_instagram_IGAA_token_here
 
-# Facebook Page Access Token
-# Get this from your Facebook App > Messenger Settings
-PAGE_ACCESS_TOKEN=your_page_access_token_here
+# APIs
+GEMINI_API_KEY=your_gemini_free_tier_key_here
+SERP_API_KEY=your_serpapi_key_optional
 
-# Google Gemini API Key
-# Get this from: https://aistudio.google.com/app/apikey
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# SerpApi Key (Optional - for search functionality)
-# Get this from: https://serpapi.com/dashboard
-SERP_API_KEY=your_serpapi_key_here
+# Generate at:
+# Gemini: https://aistudio.google.com/app/apikey
+# SerpAPI: https://serpapi.com/dashboard
