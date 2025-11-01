@@ -1,23 +1,14 @@
 {
-  "name": "instagram-ai-bot",
-  "version": "4.0.0",
-  "description": "Instagram AI Bot with Gemini Free Tier - Fully Working",
-  "main": "index.js",
+  "name": "pikco-aki-bot",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node index.js",
-    "test": "echo \"No tests specified\" && exit 0"
+    "start": "node server.js"
   },
-  "keywords": ["instagram", "bot", "gemini", "ai", "messenger", "free-tier"],
-  "author": "Your Name",
-  "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "axios": "^1.6.0",
-    "dotenv": "^16.3.1",
-    "cors": "^2.8.5"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "body-parser": "^1.20.2",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2"
   }
 }
